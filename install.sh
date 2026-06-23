@@ -197,8 +197,6 @@ choose_language() {
             MSG_CHECK_DNS="Проверка DNS для"
             MSG_PROMPT_EMAIL="  Введите email для Let's Encrypt: "
             MSG_PROMPT_DOMAIN="  Введите домен"
-            MSG_PROMPT_USER="  Введите логин для 3x-ui (по умолчанию admin): "
-            MSG_PROMPT_PASS="  Введите пароль для 3x-ui (по умолчанию admin): "
             MSG_PROMPT_SNI="  Введите XRAY SNI (по умолчанию www.google.com): "
             MSG_DIR_EXISTS="Уже существует:"
             MSG_DIR_CREATED="Создана директория:"
@@ -255,8 +253,6 @@ choose_language() {
             MSG_CHECK_DNS="Checking DNS for"
             MSG_PROMPT_EMAIL="  Enter email for Let's Encrypt: "
             MSG_PROMPT_DOMAIN="  Enter your domain"
-            MSG_PROMPT_USER="  Enter username for 3x-ui (default: admin): "
-            MSG_PROMPT_PASS="  Enter password for 3x-ui (default: admin): "
             MSG_PROMPT_SNI="  Enter XRAY SNI (default: www.google.com): "
             MSG_DIR_EXISTS="Already exists:"
             MSG_DIR_CREATED="Created directory:"
@@ -648,8 +644,6 @@ get_real_certs() {
 
 configure_3xui_basepath() {
     local domain="$1"
-    local panel_user="$2"
-    local panel_pass="$3"
     local basepath="/3x-ui-panel/"
     local sub_port="2096"
     local sub_uri="/3x-ui-panel/sub/"
@@ -667,8 +661,6 @@ configure_3xui_basepath() {
 
     docker exec 3x-ui python3 -c \
         "import sqlite3; conn = sqlite3.connect('/etc/x-ui/x-ui.db'); cur = conn.cursor(); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('webBasePath', '${basepath}');\"); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('subPort', '${sub_port}');\"); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('subURI', '${sub_uri}');\");        cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('subJsonURI', '${sub_json_uri}');\"); conn.commit(); conn.close()"
-
-    docker exec 3x-ui x-ui setting -username "${panel_user}" -password "${panel_pass}" >/dev/null 2>&1 || true
 
     $COMPOSE_CMD restart 3x-ui
     sleep 3
@@ -713,14 +705,6 @@ main() {
     read -r user_domain
     local domain="${user_domain:-$hostname}"
 
-    printf "$MSG_PROMPT_USER"
-    read -r panel_user
-    panel_user="${panel_user:-admin}"
-
-    printf "$MSG_PROMPT_PASS"
-    read -r panel_pass
-    panel_pass="${panel_pass:-admin}"
-
     printf "$MSG_PROMPT_SNI"
     read -r user_sni
     XRAY_SNI="${user_sni:-www.google.com}"
@@ -751,7 +735,7 @@ main() {
 
     step "$MSG_STEP_3XUI"
     divider
-    configure_3xui_basepath "$domain" "$panel_user" "$panel_pass"
+    configure_3xui_basepath "$domain"
 
     step "$MSG_STEP_CERTS_REAL"
     divider
