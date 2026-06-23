@@ -79,6 +79,8 @@ services:
     image: ghcr.io/mhsanaei/3x-ui:latest
     container_name: 3x-ui
     restart: unless-stopped
+    ports:
+      - "443:443/udp"
     volumes:
       - ./3x-ui/db:/etc/x-ui
       - ./3x-ui/cert:/root/cert
@@ -95,8 +97,8 @@ services:
     environment:
       - NGINX_UI_IGNORE_DOCKER_SOCKET=true
     ports:
-      - "80:80"
-      - "443:443"
+      - "80:80/tcp"
+      - "443:443/tcp"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:rw
       - ./nginx/conf.d:/etc/nginx/conf.d:rw
