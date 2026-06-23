@@ -10,7 +10,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_FILE="$SCRIPT_DIR/install.log"
 NGINX_DIR="$SCRIPT_DIR/nginx"
 NGINX_UI_DIR="$SCRIPT_DIR/nginx-ui"
-XRAY_SNI="www.google.com"
 
 DOCKER_CMD="docker"
 COMPOSE_CMD="docker compose"
@@ -197,6 +196,7 @@ choose_language() {
             MSG_CHECK_DNS="Проверка DNS для"
             MSG_PROMPT_EMAIL="  Введите email для Let's Encrypt: "
             MSG_PROMPT_DOMAIN="  Введите домен"
+            MSG_PROMPT_SNI="  Введите SNI для XRAY маскировки"
             MSG_DIR_EXISTS="Уже существует:"
             MSG_DIR_CREATED="Создана директория:"
             MSG_FILE_EXISTS="Файл уже есть:"
@@ -252,6 +252,7 @@ choose_language() {
             MSG_CHECK_DNS="Checking DNS for"
             MSG_PROMPT_EMAIL="  Enter email for Let's Encrypt: "
             MSG_PROMPT_DOMAIN="  Enter your domain"
+            MSG_PROMPT_SNI="  Enter SNI for XRAY masking"
             MSG_DIR_EXISTS="Already exists:"
             MSG_DIR_CREATED="Created directory:"
             MSG_FILE_EXISTS="File already present:"
@@ -407,6 +408,7 @@ ensure_nginx_ui_ini() {
 
 generate_nginx_conf() {
     local domain="$1"
+    local xray_sni="$2"
     local domain_escaped
     domain_escaped=$(echo "$domain" | sed 's/\./\\\\./g')
 
@@ -429,7 +431,7 @@ stream {
     access_log /var/log/nginx/stream.log stream_log;
 
     map \$ssl_preread_server_name \$upstream_backend {
-        ${XRAY_SNI}                    xray_backend;
+        ${xray_sni}                    xray_backend;
         ${domain}                      web_backend;
         ~^.*\\.${domain_escaped}\$     web_backend;
         default                        xray_backend;
@@ -576,7 +578,8 @@ EOF
 
 generate_configs() {
     local domain="$1"
-    generate_nginx_conf  "$domain"
+    local xray_sni="$2"
+    generate_nginx_conf  "$domain" "$xray_sni"
     generate_vhost_conf  "$domain"
     ensure_nginx_ui_ini
 
@@ -712,6 +715,10 @@ main() {
     read -r user_domain
     local domain="${user_domain:-$hostname}"
     echo ""
+    printf "$MSG_PROMPT_SNI (default: www.google.com): "
+    read -r user_sni
+    local xray_sni="${user_sni:-www.google.com}"
+    echo ""
     check_dns "$domain"
 
     step "$MSG_STEP_DIRS"
@@ -722,7 +729,7 @@ main() {
 
     step "$MSG_STEP_CONFIGS"
     divider
-    generate_configs "$domain"
+    generate_configs "$domain" "$xray_sni"
 
     step "$MSG_STEP_CERTS_DUMMY"
     divider
@@ -759,10 +766,6 @@ main() {
     divider
     echo -e "  ${C_DIM}📄 $MSG_HINT_LOG ${LOG_FILE}${C_RESET}"
     echo -e ""
-}
-
-main "$@"
- ""
 }
 
 main "$@"
