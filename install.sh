@@ -82,6 +82,7 @@ services:
     volumes:
       - ./3x-ui/db:/etc/x-ui
       - ./3x-ui/cert:/root/cert
+      - ./nginx/ssl:/etc/nginx/ssl:ro
     environment:
       XRAY_VMESS_AEAD_FORCED: "false"
     networks:
