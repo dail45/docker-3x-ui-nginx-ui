@@ -1,0 +1,7 @@
+install.log
+certbot_temp/
+3x-ui/
+nginx/
+!nginx-ui/app.ini
+nginx-ui/database.db
+nginx-ui/.install_secret
