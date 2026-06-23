@@ -197,7 +197,6 @@ choose_language() {
             MSG_CHECK_DNS="Проверка DNS для"
             MSG_PROMPT_EMAIL="  Введите email для Let's Encrypt: "
             MSG_PROMPT_DOMAIN="  Введите домен"
-            MSG_PROMPT_SNI="  Введите XRAY SNI (по умолчанию www.google.com): "
             MSG_DIR_EXISTS="Уже существует:"
             MSG_DIR_CREATED="Создана директория:"
             MSG_FILE_EXISTS="Файл уже есть:"
@@ -253,7 +252,6 @@ choose_language() {
             MSG_CHECK_DNS="Checking DNS for"
             MSG_PROMPT_EMAIL="  Enter email for Let's Encrypt: "
             MSG_PROMPT_DOMAIN="  Enter your domain"
-            MSG_PROMPT_SNI="  Enter XRAY SNI (default: www.google.com): "
             MSG_DIR_EXISTS="Already exists:"
             MSG_DIR_CREATED="Created directory:"
             MSG_FILE_EXISTS="File already present:"
@@ -527,18 +525,6 @@ server {
 
     add_header Strict-Transport-Security "max-age=63072000" always;
 
-    location /3x-ui-panel/sub/ {
-        proxy_pass         http://3x-ui:2096;
-        proxy_http_version 1.1;
-        proxy_set_header   Host              \$host;
-        proxy_set_header   X-Real-IP         \$remote_addr;
-        proxy_set_header   X-Forwarded-For   \$proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto https;
-        proxy_set_header   Upgrade           \$http_upgrade;
-        proxy_set_header   Connection        \$connection_upgrade;
-        proxy_read_timeout 86400;
-    }
-
     location /3x-ui-panel/ {
         proxy_pass         http://3x-ui:2053;
         proxy_http_version 1.1;
@@ -646,8 +632,7 @@ configure_3xui_basepath() {
     local domain="$1"
     local basepath="/3x-ui-panel/"
     local sub_port="2096"
-    local sub_uri="/3x-ui-panel/sub/"
-    local sub_json_uri="https://${domain}/3x-ui-panel/sub/"
+    local sub_uri="https://${domain}/3x-ui-panel/sub/"
     info "$MSG_WAIT_DB"
 
     local retries=0
@@ -660,7 +645,7 @@ configure_3xui_basepath() {
     echo ""
 
     docker exec 3x-ui python3 -c \
-        "import sqlite3; conn = sqlite3.connect('/etc/x-ui/x-ui.db'); cur = conn.cursor(); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('webBasePath', '${basepath}');\"); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('subPort', '${sub_port}');\"); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('subURI', '${sub_uri}');\");        cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('subJsonURI', '${sub_json_uri}');\"); conn.commit(); conn.close()"
+        "import sqlite3; conn = sqlite3.connect('/etc/x-ui/x-ui.db'); cur = conn.cursor(); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('webBasePath', '${basepath}');\"); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('subPort', '${sub_port}');\"); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('subURI', '${sub_uri}');\"); conn.commit(); conn.close()"
 
     $COMPOSE_CMD restart 3x-ui
     sleep 3
@@ -700,16 +685,10 @@ main() {
     echo ""
     printf "$MSG_PROMPT_EMAIL"
     read -r email
-    
     printf "$MSG_PROMPT_DOMAIN (default: $hostname): "
     read -r user_domain
     local domain="${user_domain:-$hostname}"
-
-    printf "$MSG_PROMPT_SNI"
-    read -r user_sni
-    XRAY_SNI="${user_sni:-www.google.com}"
     echo ""
-    
     check_dns "$domain"
 
     step "$MSG_STEP_DIRS"
