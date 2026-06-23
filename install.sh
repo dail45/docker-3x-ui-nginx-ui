@@ -197,6 +197,9 @@ choose_language() {
             MSG_CHECK_DNS="Проверка DNS для"
             MSG_PROMPT_EMAIL="  Введите email для Let's Encrypt: "
             MSG_PROMPT_DOMAIN="  Введите домен"
+            MSG_PROMPT_USER="  Введите логин для 3x-ui (по умолчанию admin): "
+            MSG_PROMPT_PASS="  Введите пароль для 3x-ui (по умолчанию admin): "
+            MSG_PROMPT_SNI="  Введите XRAY SNI (по умолчанию www.google.com): "
             MSG_DIR_EXISTS="Уже существует:"
             MSG_DIR_CREATED="Создана директория:"
             MSG_FILE_EXISTS="Файл уже есть:"
@@ -252,6 +255,9 @@ choose_language() {
             MSG_CHECK_DNS="Checking DNS for"
             MSG_PROMPT_EMAIL="  Enter email for Let's Encrypt: "
             MSG_PROMPT_DOMAIN="  Enter your domain"
+            MSG_PROMPT_USER="  Enter username for 3x-ui (default: admin): "
+            MSG_PROMPT_PASS="  Enter password for 3x-ui (default: admin): "
+            MSG_PROMPT_SNI="  Enter XRAY SNI (default: www.google.com): "
             MSG_DIR_EXISTS="Already exists:"
             MSG_DIR_CREATED="Created directory:"
             MSG_FILE_EXISTS="File already present:"
@@ -525,6 +531,18 @@ server {
 
     add_header Strict-Transport-Security "max-age=63072000" always;
 
+    location /3x-ui-panel/sub/ {
+        proxy_pass         http://3x-ui:2096;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              \$host;
+        proxy_set_header   X-Real-IP         \$remote_addr;
+        proxy_set_header   X-Forwarded-For   \$proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto https;
+        proxy_set_header   Upgrade           \$http_upgrade;
+        proxy_set_header   Connection        \$connection_upgrade;
+        proxy_read_timeout 86400;
+    }
+
     location /3x-ui-panel/ {
         proxy_pass         http://3x-ui:2053;
         proxy_http_version 1.1;
@@ -629,19 +647,28 @@ get_real_certs() {
 # ============================================================================
 
 configure_3xui_basepath() {
+    local domain="$1"
+    local panel_user="$2"
+    local panel_pass="$3"
     local basepath="/3x-ui-panel/"
+    local sub_port="2096"
+    local sub_uri="/3x-ui-panel/sub/"
+    local sub_json_uri="https://${domain}/3x-ui-panel/sub/"
     info "$MSG_WAIT_DB"
 
     local retries=0
     until docker exec 3x-ui test -f /etc/x-ui/x-ui.db 2>/dev/null; do
         retries=$((retries + 1))
-        test "$retries" -ge 15 && fail "$MSG_ERR_3XUI_TIMEOUT $COMPOSE_CMD logs 3x-ui"printf "."
+        test "$retries" -ge 15 && fail "$MSG_ERR_3XUI_TIMEOUT $COMPOSE_CMD logs 3x-ui"
+        printf "."
         sleep 2
     done
     echo ""
 
     docker exec 3x-ui python3 -c \
-        "import sqlite3; conn = sqlite3.connect('/etc/x-ui/x-ui.db'); cur = conn.cursor(); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('webBasePath', '${basepath}');\"); conn.commit(); conn.close()"
+        "import sqlite3; conn = sqlite3.connect('/etc/x-ui/x-ui.db'); cur = conn.cursor(); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('webBasePath', '${basepath}');\"); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('subPort', '${sub_port}');\"); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('subURI', '${sub_uri}');\");        cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('subJsonURI', '${sub_json_uri}');\"); conn.commit(); conn.close()"
+
+    docker exec 3x-ui x-ui setting -username "${panel_user}" -password "${panel_pass}" >/dev/null 2>&1 || true
 
     $COMPOSE_CMD restart 3x-ui
     sleep 3
@@ -658,9 +685,9 @@ main() {
     clear
 
     echo -e ""
-    echo -e "  ${C_BOLD}${C_WHITE}╔══════════════════════════════════════════════════╗${C_RESET}"
-    echo -e "  ${C_BOLD}${C_WHITE}║   3x-ui + Nginx + Nginx-UI Installer             ║${C_RESET}"
-    echo -e "  ${C_BOLD}${C_WHITE}╚══════════════════════════════════════════════════╝${C_RESET}"
+    echo -e "  ${C_BOLD}${C_WHITE}╔══════════════════════════════════════════╗${C_RESET}"
+    echo -e "  ${C_BOLD}${C_WHITE}║        3x-ui + Nginx-UI Installer        ║${C_RESET}"
+    echo -e "  ${C_BOLD}${C_WHITE}╚══════════════════════════════════════════╝${C_RESET}"
     echo -e ""
 
     mkdir -p "$(dirname "$LOG_FILE")"
@@ -681,10 +708,24 @@ main() {
     echo ""
     printf "$MSG_PROMPT_EMAIL"
     read -r email
+    
     printf "$MSG_PROMPT_DOMAIN (default: $hostname): "
     read -r user_domain
     local domain="${user_domain:-$hostname}"
+
+    printf "$MSG_PROMPT_USER"
+    read -r panel_user
+    panel_user="${panel_user:-admin}"
+
+    printf "$MSG_PROMPT_PASS"
+    read -r panel_pass
+    panel_pass="${panel_pass:-admin}"
+
+    printf "$MSG_PROMPT_SNI"
+    read -r user_sni
+    XRAY_SNI="${user_sni:-www.google.com}"
     echo ""
+    
     check_dns "$domain"
 
     step "$MSG_STEP_DIRS"
@@ -710,7 +751,7 @@ main() {
 
     step "$MSG_STEP_3XUI"
     divider
-    configure_3xui_basepath
+    configure_3xui_basepath "$domain" "$panel_user" "$panel_pass"
 
     step "$MSG_STEP_CERTS_REAL"
     divider
