@@ -537,6 +537,18 @@ server {
         proxy_read_timeout 86400;
     }
 
+    location /3x-ui-panel/sub/ {
+        proxy_pass         http://3x-ui:2096;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              \$host;
+        proxy_set_header   X-Real-IP         \$remote_addr;
+        proxy_set_header   X-Forwarded-For   \$proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto https;
+        proxy_set_header   Upgrade           \$http_upgrade;
+        proxy_set_header   Connection        \$connection_upgrade;
+        proxy_read_timeout 86400;
+    }
+
     location /nginx-ui/ {
         proxy_pass         http://nginx-ui:9000/;
         proxy_http_version 1.1;
@@ -632,7 +644,8 @@ configure_3xui_basepath() {
     local domain="$1"
     local basepath="/3x-ui-panel/"
     local sub_port="2096"
-    local sub_uri="https://${domain}/3x-ui-panel/sub/"
+    local sub_uri="/3x-ui-panel/sub/"
+    local sub_json_uri="https://${domain}/3x-ui-panel/sub/"
     info "$MSG_WAIT_DB"
 
     local retries=0
@@ -645,7 +658,8 @@ configure_3xui_basepath() {
     echo ""
 
     docker exec 3x-ui python3 -c \
-        "import sqlite3; conn = sqlite3.connect('/etc/x-ui/x-ui.db'); cur = conn.cursor(); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('webBasePath', '${basepath}');\"); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('subPort', '${sub_port}');\"); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('subURI', '${sub_uri}');\"); conn.commit(); conn.close()"
+        "import sqlite3; conn = sqlite3.connect('/etc/x-ui/x-ui.db'); cur = conn.cursor(); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('webBasePath', '${basepath}');\"); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('subPort', '${sub_port}');\"); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('subURI', '${sub_uri}');\"); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('subPath', '${sub_uri}');\"); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('subJsonURI', '${sub_json_uri}');\"); conn.commit(); conn.close()"
+
 
     $COMPOSE_CMD restart 3x-ui
     sleep 3
