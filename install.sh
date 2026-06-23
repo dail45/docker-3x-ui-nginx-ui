@@ -657,9 +657,18 @@ configure_3xui_basepath() {
     done
     echo ""
 
-    docker exec 3x-ui python3 -c \
-        "import sqlite3; conn = sqlite3.connect('/etc/x-ui/x-ui.db'); cur = conn.cursor(); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('webBasePath', '${basepath}');\"); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('subPort', '${sub_port}');\"); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('subURI', '${sub_uri}');\"); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('subPath', '${sub_uri}');\"); cur.execute(\"INSERT OR REPLACE INTO settings (key, value) VALUES ('subJsonURI', '${sub_json_uri}');\"); conn.commit(); conn.close()"
-
+    docker exec -i 3x-ui python3 <<EOF
+import sqlite3
+conn = sqlite3.connect('/etc/x-ui/x-ui.db')
+cur = conn.cursor()
+cur.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('webBasePath', '${basepath}')")
+cur.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('subPort', '${sub_port}')")
+cur.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('subPath', '${sub_uri}')")
+cur.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('subURI', '${sub_json_uri}')")
+cur.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('subJsonURI', '${sub_json_uri}')")
+conn.commit()
+conn.close()
+EOF
 
     $COMPOSE_CMD restart 3x-ui
     sleep 3
