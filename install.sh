@@ -197,6 +197,7 @@ choose_language() {
             MSG_CHECK_CURL="Проверка curl"
             MSG_CHECK_OPENSSL="Проверка openssl"
             MSG_CHECK_DNS="Проверка DNS для"
+            MSG_PROMPT_REAL_CERT="  Получить настоящий сертификат Let's Encrypt? [Y/n]: "
             MSG_PROMPT_EMAIL="  Введите email для Let's Encrypt: "
             MSG_PROMPT_DOMAIN="  Введите домен"
             MSG_PROMPT_SNI="  Введите SNI для XRAY маскировки"
@@ -214,6 +215,7 @@ choose_language() {
             MSG_BASEPATH_SET="URI path 3x-ui установлен:"
             MSG_NGINX_RELOAD="Перезапуск Nginx с боевыми сертификатами..."
             MSG_ACCESS="ДОСТУП"
+            MSG_SECRET="Секрет для установки Nginx-UI:"
             MSG_HINT_LOG="Логи установки:"
             MSG_SYMLINK_CREATED="Создан симлинк:"
             MSG_ERR_ROOT="Запустите скрипт от имени root (sudo)"
@@ -253,6 +255,7 @@ choose_language() {
             MSG_CHECK_CURL="Checking curl"
             MSG_CHECK_OPENSSL="Checking openssl"
             MSG_CHECK_DNS="Checking DNS for"
+            MSG_PROMPT_REAL_CERT="  Get a real Let's Encrypt certificate? [Y/n]: "
             MSG_PROMPT_EMAIL="  Enter email for Let's Encrypt: "
             MSG_PROMPT_DOMAIN="  Enter your domain"
             MSG_PROMPT_SNI="  Enter SNI for XRAY masking"
@@ -270,6 +273,7 @@ choose_language() {
             MSG_BASEPATH_SET="3x-ui URI path set:"
             MSG_NGINX_RELOAD="Reloading Nginx with real certificates..."
             MSG_ACCESS="ACCESS"
+            MSG_SECRET="Nginx-UI install secret:"
             MSG_HINT_LOG="Installation log:"
             MSG_SYMLINK_CREATED="Created symlink:"
             MSG_ERR_ROOT="Run this script as root (sudo)"
@@ -712,11 +716,22 @@ main() {
     local hostname
     hostname=$(hostname)
     echo ""
-    printf "$MSG_PROMPT_EMAIL"
-    read -r email
     printf "$MSG_PROMPT_DOMAIN (default: $hostname): "
     read -r user_domain
     local domain="${user_domain:-$hostname}"
+    
+    echo ""
+    printf "$MSG_PROMPT_REAL_CERT"
+    read -r ask_cert
+    local do_real_cert=false
+    local email=""
+    if [[ -z "$ask_cert" || "$ask_cert" =~ ^[Yy]$ ]]; then
+        do_real_cert=true
+        echo ""
+        printf "$MSG_PROMPT_EMAIL"
+        read -r email
+    fi
+
     echo ""
     printf "$MSG_PROMPT_SNI (default: www.google.com): "
     read -r user_sni
@@ -749,12 +764,14 @@ main() {
     divider
     configure_3xui_basepath "$domain"
 
-    step "$MSG_STEP_CERTS_REAL"
-    divider
-    get_real_certs "$domain" "$email"
-    info "$MSG_NGINX_RELOAD"
-    $COMPOSE_CMD restart nginx-ui
-    ok "$MSG_OK_NGINX_RELOAD"
+    if [ "$do_real_cert" = true ]; then
+        step "$MSG_STEP_CERTS_REAL"
+        divider
+        get_real_certs "$domain" "$email"
+        info "$MSG_NGINX_RELOAD"
+        $COMPOSE_CMD restart nginx-ui
+        ok "$MSG_OK_NGINX_RELOAD"
+    fi
 
     echo -e ""
     echo -e "  ${C_GREEN}${C_BOLD}╔══════════════════════════════════════════════════╗${C_RESET}"
@@ -765,6 +782,10 @@ main() {
     echo -e ""
     echo -e "    ${C_CYAN}3x-ui panel  →${C_RESET}  https://${domain}/3x-ui-panel/"
     echo -e "    ${C_CYAN}Nginx-UI     →${C_RESET}  https://${domain}/nginx-ui/"
+    echo -e ""
+    local secret
+    secret=$(docker exec nginx-ui cat /etc/nginx-ui/.install_secret 2>/dev/null || echo "Not found")
+    echo -e "    ${C_YELLOW}$MSG_SECRET${C_RESET}  $secret"
     echo -e ""
     divider
     echo -e "  ${C_DIM}📄 $MSG_HINT_LOG ${LOG_FILE}${C_RESET}"
